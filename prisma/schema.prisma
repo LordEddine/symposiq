@@ -1,0 +1,209 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Diagramme de classes : docs/classes.md (cahier des charges §9)
+// Argent : toujours Int en cents. Statuts : toujours des enums.
+
+// ---------- Énumérations ----------
+
+enum Role {
+  PARTICIPANT
+  ORGANIZER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELED
+  REFUNDED
+}
+
+enum SubStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  UNPAID
+  CANCELED
+  INCOMPLETE
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELED
+}
+
+enum TicketType {
+  REGULAR
+  STUDENT
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+// ---------- Modèles ----------
+
+// Utilisateur supprimé = anonymisé, ses commandes sont conservées (ENF-04) : aucune cascade
+model User {
+  id               String   @id @default(cuid())
+  clerkId          String   @unique
+  email            String   @unique
+  role             Role     @default(PARTICIPANT)
+  studentEmail     String?
+  stripeCustomerId String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  orders       Order[]
+  events       Event[] // événements organisés (RM-08)
+  subscription Subscription?
+}
+
+model Event {
+  id                String      @id @default(cuid())
+  title             String
+  startsAt          DateTime
+  location          String
+  capacity          Int
+  seatsTaken        Int         @default(0) // mis à jour dans la transaction de la commande (RM-01)
+  priceCents        Int
+  studentPriceCents Int?
+  status            EventStatus @default(DRAFT)
+  organizerId       String
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  organizer  User        @relation(fields: [organizerId], references: [id])
+  orderItems OrderItem[]
+  promoCodes PromoCode[]
+
+  @@index([organizerId])
+  @@index([status, startsAt])
+}
+
+// Montants recalculés par le serveur (RM-12), taxes en cents (RM-13)
+model Order {
+  id              String      @id @default(cuid())
+  status          OrderStatus @default(PENDING) // PAID uniquement via webhook signé (RM-15)
+  subtotalCents   Int
+  discountCents   Int         @default(0)
+  tpsCents        Int
+  tvqCents        Int
+  totalCents      Int
+  reservedUntil   DateTime // places réservées 30 min (RM-02)
+  stripeSessionId String?     @unique
+  userId          String
+  promoCodeId     String? // un seul code par commande (RM-10)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user      User        @relation(fields: [userId], references: [id])
+  promoCode PromoCode?  @relation(fields: [promoCodeId], references: [id], onDelete: Restrict)
+  items     OrderItem[]
+  refunds   Refund[]
+
+  @@index([userId])
+  @@index([status, reservedUntil])
+}
+
+// Composition Order -> OrderItem ; prix et titre copiés à l'achat (RM-07)
+model OrderItem {
+  orderId        String
+  eventId        String
+  ticketType     TicketType
+  quantity       Int
+  unitPriceCents Int
+  eventTitle     String
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id])
+
+  @@id([orderId, eventId, ticketType])
+  @@index([eventId])
+}
+
+model Refund {
+  id             String       @id @default(cuid())
+  amountCents    Int
+  status         RefundStatus @default(REQUESTED)
+  reason         String
+  stripeRefundId String?      @unique
+  orderId        String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  status               SubStatus
+  stripeSubscriptionId String    @unique
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean   @default(false) // RM-09
+  graceUntil           DateTime? // période de grâce de 7 jours (RM-05)
+  userId               String    @unique // un seul abonnement par utilisateur
+  planId               String
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([planId])
+}
+
+model Plan {
+  id                String   @id @default(cuid())
+  name              String
+  monthlyPriceCents Int
+  trialDays         Int
+  stripePriceId     String   @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+// RM-10 : pourcentage, date d'expiration, nombre maximal d'utilisations
+model PromoCode {
+  id         String   @id @default(cuid())
+  code       String
+  percentOff Int
+  maxUses    Int
+  usedCount  Int      @default(0)
+  expiresAt  DateTime
+  eventId    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  event  Event   @relation(fields: [eventId], references: [id])
+  orders Order[]
+
+  @@unique([eventId, code])
+}
+
+// Idempotence des webhooks (RM-14) : id = identifiant evt_… de Stripe
+model WebhookEvent {
+  id         String   @id
+  type       String // nom de l'événement Stripe, pas un statut
+  receivedAt DateTime @default(now())
+}
