@@ -6,7 +6,7 @@
 |---|---|
 | Cours | 420-951-MA Applications Web transactionnelles — groupe 25604 |
 | Document | Laboratoire 1 — exemple de référence |
-| Version | 1.0 — fin de la semaine 2 |
+| Version | 1.1 — fin de la semaine 2 |
 | Option | B — nouveau projet |
 | Équipe | 3 membres (A, B, C) |
 | Modèle de paiement | Hybride : paiement unique (billets) **et** abonnement mensuel (plan Pro) |
@@ -21,6 +21,7 @@
 | 0.1 | Semaine 1 | Fiche projet : vision, SWOT, personas, 7 P. |
 | 0.2 | Semaine 2, partie 1 | Modèle de paiement : gratuit / payant, grille tarifaire, cas de paiement, événements Stripe. |
 | 1.0 | Semaine 2, partie 2 | Périmètre, cas d'utilisation, user stories et critères, règles métier, exigences non fonctionnelles, diagrammes, maquettes, planification. |
+| 1.1 | Semaine 3 | Revue des stories en mode plan avec Claude Code : US-21 ajoutee ; criteres dàcceptation ajoutes pour US-11, US-12 et US-21 ;  |
 
 ---
 
@@ -354,6 +355,7 @@ Tailles : **S** (petite, moins d'une journée), **M** (moyenne, deux ou trois jo
 | US-18 | organisateur | annuler un événement et rembourser tous les billets, afin de gérer un imprévu. | Could | L |
 | US-19 | organisateur | payer un abonnement annuel, afin d'économiser. | Won't | — |
 | US-20 | participant | utiliser une application mobile native. | Won't | — |
+| US-21 | Organisateur | Etre averti par un courriel 3 jours avant la fin de mon essai gratuit, afin de decider si je garde le plan Pro avant d`etre preleve | Should | S |
 
 Les **Must** (US-01 à US-10) représentent environ 60 % de l'effort estimé ; ils couvrent les deux modèles de paiement.
 
@@ -404,10 +406,26 @@ Les **Must** (US-01 à US-10) représentent environ 60 % de l'effort estimé ; i
 2. **Étant donné** un abonnement en retard, **quand** je mets ma carte à jour et que le paiement passe, **alors** la bannière disparaît et le statut redevient actif.
 3. **Étant donné** un abonnement en retard, **quand** toutes les relances échouent, **alors** je reviens au plan Gratuit, mes ventes sont suspendues et les billets déjà vendus restent valides.
 
+**US-11 — Payer au tarif etudiant**
+1. **Étant donné** que mon courriel etudiant se termine par le domaine d`un etablissement d enseignement, **quand** je choisi un billet etudiant, **alors** le prix du biller coutera 20,00$, soit 23,00 $ au total.
+2. **Étant donné** un courriel qui n est pas celui d un etablissement d enseignement  **quand** je choisis un billet etudiant, **alors** le tarif est refuse avec le message 'le tarif etudiant exige un courriel d'etablissement d'enseignement'.
+3. **Étant donné** un evenement sans prix etudiant, **quand** j'ouvre la page de cet evenement, **alors** on cache l'option 'Etudiant'.
+
+**US-12 — Appliquer un code promo**
+1. **Étant donné** un code valide de 25%, **quand** l'applique a un billet de 40,00$, **alors** le recapitulatif affiche un rabais de 10,00 $, puis applique la TPS et la TVQ et total 34,49$.
+2. **Étant donné** un code expire, **quand** j'essaie d'appliquer, **alors** on voit un message 'Ce code a expire' et le prix n'est pas modifie.
+3. **Étant donné** un code innexistant, **quand** j'applique le code, **alors** on voit le message 'code invalide'.
+4. **Étant donné** qu'un code est deja applique, **quand** je le saisis une seconde fois, **alors** le second est refuse (un seul code par commande).
+5. **Étant donné** un code dont le nombre maximal d'utilisations est atteint, **quand** je l'applique, **alors** on voit 'Ce code n'est plus disponible'.
+
 **US-13 et US-14 — Remboursement**
 1. **Étant donné** un événement dans plus de 48 heures, **quand** je demande un remboursement, **alors** l'organisateur reçoit la demande.
 2. **Étant donné** un événement dans moins de 48 heures, **quand** j'ouvre ma commande, **alors** le bouton « Demander un remboursement » est désactivé, avec l'explication.
 3. **Étant donné** une demande approuvée, **quand** le remboursement est effectué chez Stripe, **alors** la commande passe à « remboursée », la place est libérée et je reçois un courriel.
+
+**US-21 — Etre averti avant la fin de l'essai**
+1. **Étant donné** un essai qui se termine dans 3 jours, **quand** quand le traitement quotidien s'execute, **alors** je recois un courriel avec la date du premier prevelemnt et le montant avec un message d'avertissement a propos du delai.
+2. **Étant donné** que j'ai annule pendant l'essai, **quand** le traitement s'execute, **alors** continuer son abonnement jusqua la fin et empereche de reactiver l'essai.
 
 ---
 
@@ -651,7 +669,9 @@ Chaque membre fait des commits réguliers, référencés par l'identifiant de la
 | US-09 | UC-08 | RM-09 | Annulation : accès conservé jusqu'à la fin de la période. |
 | US-10 | UC-08 | RM-05, RM-06 | Carte 0341 + Test Clock : échec, période de grâce, retour au Gratuit. |
 | US-13 / US-14 | UC-03, UC-10 | RM-04 | Remboursement demandé à 49 h (accepté) et à 47 h (refusé). |
-
+| US-11 | UC-02 | RM-03 | Courriel non universitaire : tarif étudiant refusé ; événement sans prix étudiant : option absente. |
+| US-12 | UC-11 | RM-10, RM-13 | Code de 25 % sur 40,00 $ → 34,49 $ ; code expiré, épuisé ou second code : refusé. |
+| US-21 | UC-07 | — | Test Clock : courriel reçu 3 jours avant la fin de l'essai ; aucun courriel après une annulation. |
 ---
 
 ## 13. Journal d'utilisation de l'IA
