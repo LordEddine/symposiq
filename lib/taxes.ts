@@ -13,12 +13,18 @@ const TPS_TAUX = 5000;
 const TVQ_TAUX = 9975;
 const DENOMINATEUR = 100_000;
 
+// Plafond par commande : 1 M$. Garde aussi base × taux bien sous Number.MAX_SAFE_INTEGER.
+const MONTANT_MAX_CENTS = 100_000_000;
+
 function verifierMontant(nom: string, montant: number): void {
   if (!Number.isInteger(montant)) {
     throw new Error(`${nom} doit être un entier en cents (reçu : ${montant})`);
   }
   if (montant < 0) {
     throw new Error(`${nom} ne peut pas être négatif (reçu : ${montant})`);
+  }
+  if (montant > MONTANT_MAX_CENTS) {
+    throw new Error(`${nom} ne peut pas dépasser ${MONTANT_MAX_CENTS} cents (reçu : ${montant})`);
   }
 }
 
@@ -30,8 +36,12 @@ function calculerTaxe(base: number, taux: number): number {
 export function calculerTaxes(sousTotalCents: number, rabaisCents = 0): Taxes {
   verifierMontant("sousTotalCents", sousTotalCents);
   verifierMontant("rabaisCents", rabaisCents);
+  // Un rabais calculé par le serveur ne dépasse jamais le sous-total : sinon, c'est un bug.
+  if (rabaisCents > sousTotalCents) {
+    throw new Error("rabaisCents ne peut pas dépasser sousTotalCents");
+  }
 
-  const base = Math.max(0, sousTotalCents - rabaisCents);
+  const base = sousTotalCents - rabaisCents;
   // TPS et TVQ sont calculées toutes les deux sur la base : pas de TVQ sur la TPS.
   const tps = calculerTaxe(base, TPS_TAUX);
   const tvq = calculerTaxe(base, TVQ_TAUX);
