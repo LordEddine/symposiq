@@ -10,7 +10,7 @@ function creerClient(){
     return new PrismaClient({ adapter });
 }
 
-export const prisma = globalPourPrisma.prisma ?? creerClient;
+export const prisma = globalPourPrisma.prisma ?? creerClient();
 
 if (process.env.NODE_ENV !== "production"){ 
     globalPourPrisma.prisma = prisma;
